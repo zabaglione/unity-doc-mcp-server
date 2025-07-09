@@ -1,7 +1,7 @@
 {
   "name": "unity-doc-mcp-server",
   "version": "0.1.0",
-  "description": "Unity Documentation MCP Server - Provides Unity 6 documentation via Model Context Protocol",
+  "description": "Unity Documentation MCP Server - Provides Unity 6 documentation via Model Context Protocol with full-text search and offline support",
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
@@ -13,16 +13,33 @@
     "lint": "eslint src/**/*.ts",
     "typecheck": "tsc --noEmit",
     "download-docs": "tsx src/scripts/download-docs.ts",
+    "init-db": "tsx src/scripts/init-db.ts",
+    "index-docs": "tsx src/scripts/index-docs.ts",
+    "setup": "npm run init-db && npm run index-docs",
     "clean": "rimraf dist data/extracted data/*.db"
   },
   "keywords": [
     "unity",
+    "unity6",
     "documentation",
     "mcp",
-    "model-context-protocol"
+    "model-context-protocol",
+    "claude",
+    "ai",
+    "search",
+    "sqlite",
+    "fts5"
   ],
-  "author": "",
+  "author": "zabaglione",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zabaglione/unity-doc-mcp-server.git"
+  },
+  "homepage": "https://github.com/zabaglione/unity-doc-mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/zabaglione/unity-doc-mcp-server/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.5.0",
     "better-sqlite3": "^9.2.2",

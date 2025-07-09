@@ -7,6 +7,8 @@ dist/
 # Data files
 data/
 *.db
+*.db-journal
+*.db-wal
 *.sqlite
 
 # Test coverage
@@ -40,3 +42,17 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# MCP specific
+.claude/settings.local.json
+mcp-config.json
+test-mcp.sh
+
+# Unity Documentation data
+data/unity-zips/
+data/extracted/
+
+# Runtime files
+*.pid
+*.seed
+*.pid.lock

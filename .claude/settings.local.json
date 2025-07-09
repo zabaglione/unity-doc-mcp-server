@@ -24,7 +24,10 @@
       "Bash(export PATH=/Users/zabaglione/.nvm/versions/node/v20.10.0/bin:$PATH)",
       "Bash(npx vitest run:*)",
       "Bash(git add:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(git commit:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote add:*)"
     ],
     "deny": []
   }

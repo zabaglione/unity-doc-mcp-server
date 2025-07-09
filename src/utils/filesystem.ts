@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, normalize } from 'path';
 import { logger } from './logger.js';
 
 export class FileSystemUtils {
@@ -81,9 +81,11 @@ export class FileSystemUtils {
    */
   public static async copyFile(src: string, dest: string): Promise<void> {
     try {
-      await this.ensureDir(dirname(dest));
-      await fs.copyFile(src, dest);
-      logger().debug(`Copied file: ${src} -> ${dest}`);
+      const normalizedSrc = normalize(src);
+      const normalizedDest = normalize(dest);
+      await this.ensureDir(dirname(normalizedDest));
+      await fs.copyFile(normalizedSrc, normalizedDest);
+      logger().debug(`Copied file: ${normalizedSrc} -> ${normalizedDest}`);
     } catch (error) {
       logger().error(`Failed to copy file: ${src} -> ${dest}`, { error });
       throw error;
@@ -98,7 +100,7 @@ export class FileSystemUtils {
       const entries = await fs.readdir(dir, { withFileTypes: true });
       
       for (const entry of entries) {
-        const fullPath = join(dir, entry.name);
+        const fullPath = normalize(join(dir, entry.name));
         
         if (entry.isDirectory() && recursive) {
           await walk(fullPath, files);
@@ -110,7 +112,7 @@ export class FileSystemUtils {
 
     try {
       const files: string[] = [];
-      await walk(dirPath, files);
+      await walk(normalize(dirPath), files);
       logger().debug(`Listed ${files.length} files in: ${dirPath}`);
       return files;
     } catch (error) {
@@ -137,9 +139,11 @@ export class FileSystemUtils {
    */
   public static async moveFile(src: string, dest: string): Promise<void> {
     try {
-      await this.ensureDir(dirname(dest));
-      await fs.rename(src, dest);
-      logger().debug(`Moved file: ${src} -> ${dest}`);
+      const normalizedSrc = normalize(src);
+      const normalizedDest = normalize(dest);
+      await this.ensureDir(dirname(normalizedDest));
+      await fs.rename(normalizedSrc, normalizedDest);
+      logger().debug(`Moved file: ${normalizedSrc} -> ${normalizedDest}`);
     } catch (error) {
       // If rename fails (e.g., across partitions), fall back to copy and delete
       if ((error as NodeJS.ErrnoException).code === 'EXDEV') {
@@ -157,7 +161,8 @@ export class FileSystemUtils {
    */
   public static async createTempDir(prefix = 'unity-doc-'): Promise<string> {
     try {
-      const tempDir = await fs.mkdtemp(join('/tmp', prefix));
+      const tmpDir = process.platform === 'win32' ? process.env.TEMP || process.env.TMP || 'C:\\tmp' : '/tmp';
+      const tempDir = await fs.mkdtemp(join(tmpDir, prefix));
       logger().debug(`Created temp directory: ${tempDir}`);
       return tempDir;
     } catch (error) {
