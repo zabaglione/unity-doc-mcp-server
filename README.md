@@ -1,10 +1,11 @@
 # Unity Documentation MCP Server
 
-Unity 6公式ドキュメントをModel Context Protocol経由で提供するMCPサーバー。Claude Code等のAIアシスタントがUnity開発時に正確なドキュメント情報を参照できるようにします。
+Unity 6公式ドキュメントとパッケージドキュメントをModel Context Protocol経由で提供するMCPサーバー。Claude Code等のAIアシスタントがUnity開発時に正確なドキュメント情報を参照できるようにします。
 
 ## 主な機能
 
 - **Unity 6 (6000.x) 公式ドキュメント**のダウンロード・解析・検索
+- **Unity パッケージドキュメント**のサポート（ECS、Input System、URP等）
 - **SQLite FTS5による高速全文検索**（特殊文字対応済み）
 - **ページネーション対応**で大きなドキュメントも完全取得可能
 - **セクション分割機能**でドキュメントを論理的に分割
@@ -51,6 +52,10 @@ npm run index-docs
 
 # 6. サーバー起動テスト
 npm run dev  # Ctrl+Cで終了
+
+# 7. （オプション）パッケージドキュメントのセットアップ
+npm run download-package-docs com.unity.entities  # ECSドキュメントをダウンロード
+npm run index-package-docs com.unity.entities      # インデックス作成
 ```
 
 ## MCPツール
@@ -71,13 +76,28 @@ get_unity_version_info
 **search_unity_docs**: Unity ドキュメントを検索
 - `query`: 検索クエリ（例: "Rigidbody", "Input System"）
 - `limit`: 結果数（デフォルト: 10）
-- `type`: "all" | "manual" | "script-reference"
+- `type`: "all" | "manual" | "script-reference" | "package-docs"
 
 ```bash
 # 使用例
 search_unity_docs query="Animator component" limit=5
 search_unity_docs query="Unity 6000 ECS" type="manual"  # ドット文字も対応
 search_unity_docs query="Input System" type="script-reference"
+search_unity_docs query="EntityManager" type="package-docs"  # パッケージドキュメント検索
+```
+
+### パッケージドキュメント管理
+
+**list_unity_packages**: 利用可能なUnityパッケージドキュメントの一覧表示
+- パラメータ: なし
+
+**download_unity_package_docs**: Unityパッケージドキュメントをダウンロード
+- `packageName`: パッケージ名（例: "com.unity.entities"）
+
+```bash
+# 使用例
+list_unity_packages  # 利用可能なパッケージ一覧を表示
+download_unity_package_docs packageName="com.unity.entities"  # ECSドキュメントをダウンロード
 ```
 
 ### ドキュメント読み取り
@@ -151,6 +171,18 @@ Claude Desktopなどで使用する場合は、以下の設定を `~/Library/App
 **注意**: `args` のパスはプロジェクトの絶対パスを指定してください。
 
 ## 最新の改善点
+
+### v0.2.0の主な改善
+
+1. **Unityパッケージドキュメントのサポート**
+   - Unity ECS (Entities)、Input System、URPなどのパッケージドキュメントに対応
+   - パッケージドキュメントのダウンロード・インデックス・検索機能を追加
+   - 新しいMCPツール: `list_unity_packages`、`download_unity_package_docs`
+   - データベーススキーマをv2に更新（パッケージ情報のサポート）
+
+2. **検索機能の拡張**
+   - `type="package-docs"` オプションでパッケージドキュメントのみを検索可能
+   - パッケージ名とバージョンでのフィルタリング機能
 
 ### v0.1.1の主な改善
 

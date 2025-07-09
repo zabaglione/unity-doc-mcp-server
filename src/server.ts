@@ -15,6 +15,7 @@ import { logger } from './utils/logger.js';
 import { DocumentSearch } from './search/index.js';
 import { HtmlParser } from './parser/index.js';
 import { DatabaseConnection } from './database/connection.js';
+import { PackageDocumentationDownloader } from './downloader/package-downloader.js';
 import * as cheerio from 'cheerio';
 
 // セクション情報の型定義
@@ -83,7 +84,7 @@ function extractSections(html: string): DocumentSection[] {
 const server = new Server(
   {
     name: 'unity-docs',
-    version: '0.1.0',
+    version: '0.2.0',
   },
   {
     capabilities: {
@@ -114,7 +115,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             type: {
               type: 'string',
-              enum: ['all', 'manual', 'script-reference'],
+              enum: ['all', 'manual', 'script-reference', 'package-docs'],
               description: 'Type of documentation to search (default: all)',
               default: 'all',
             },
@@ -187,6 +188,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: [],
         },
       },
+      {
+        name: 'list_unity_packages',
+        description: 'List available Unity package documentation',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
+      },
+      {
+        name: 'download_unity_package_docs',
+        description: 'Download Unity package documentation for offline access',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            packageName: {
+              type: 'string',
+              description: 'Package name (e.g., "com.unity.entities")',
+            },
+          },
+          required: ['packageName'],
+        },
+      },
     ],
   };
 });
@@ -241,6 +265,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       results.forEach((result, index) => {
         response += `${index + 1}. **${result.title}** (${result.type})\n`;
         response += `   Path: ${result.filePath}\n`;
+        if (result.packageName) {
+          response += `   Package: ${result.packageName} ${result.packageVersion || ''}\n`;
+        }
         response += `   ${result.snippet}\n\n`;
       });
       
@@ -576,6 +603,130 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       };
+    }
+
+    if (name === 'list_unity_packages') {
+      logger().info('Listing Unity packages');
+      
+      const downloader = new PackageDocumentationDownloader();
+      const packages = downloader.getAvailablePackages();
+      
+      // データベースから既存のパッケージドキュメント数を取得
+      const dbConnection = DatabaseConnection.getInstance();
+      const db = dbConnection.getDatabase();
+      
+      let response = `# Available Unity Package Documentation\n\n`;
+      response += `Total available packages: ${packages.length}\n\n`;
+      
+      for (const pkg of packages) {
+        response += `## ${pkg.displayName}\n`;
+        response += `- **Package:** ${pkg.name}\n`;
+        response += `- **Version:** ${pkg.version}\n`;
+        
+        // このパッケージがダウンロード済みかチェック
+        const docsPath = downloader.getPackageDocumentationPath(pkg.name);
+        if (docsPath) {
+          response += `- **Status:** ✅ Downloaded\n`;
+          
+          // インデックス済みドキュメント数を取得
+          try {
+            const docCount = db.prepare(
+              'SELECT COUNT(*) as count FROM documents WHERE package_name = ?'
+            ).get(pkg.name) as { count: number };
+            
+            if (docCount.count > 0) {
+              response += `- **Indexed documents:** ${docCount.count}\n`;
+            } else {
+              response += `- **Indexed documents:** 0 (run \`index-package-docs\` to index)\n`;
+            }
+          } catch (error) {
+            // エラーは無視
+          }
+        } else {
+          response += `- **Status:** ❌ Not downloaded\n`;
+          response += `- **Download:** Use \`download_unity_package_docs\` tool\n`;
+        }
+        
+        response += `- **Documentation URL:** ${pkg.documentation.url || 'N/A'}\n\n`;
+      }
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: response,
+          },
+        ],
+      };
+    }
+
+    if (name === 'download_unity_package_docs') {
+      const { packageName } = args as any;
+      
+      logger().info('Downloading Unity package docs', { packageName });
+      
+      const downloader = new PackageDocumentationDownloader();
+      const packageInfo = downloader.getPackageInfo(packageName);
+      
+      if (!packageInfo) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Unknown package: ${packageName}\n\nUse \`list_unity_packages\` to see available packages.`,
+            },
+          ],
+        };
+      }
+      
+      // 既にダウンロード済みかチェック
+      const existingPath = downloader.getPackageDocumentationPath(packageName);
+      if (existingPath) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Package documentation already downloaded: ${packageName}@${packageInfo.version}\n\nPath: ${existingPath}\n\nNext step: Run the indexing process to make it searchable.`,
+            },
+          ],
+        };
+      }
+      
+      try {
+        // ダウンロードを実行
+        const extractPath = await downloader.downloadPackageDocumentation(packageName);
+        
+        let response = `# Package Documentation Downloaded Successfully\n\n`;
+        response += `**Package:** ${packageInfo.displayName}\n`;
+        response += `**Version:** ${packageInfo.version}\n`;
+        response += `**Path:** ${extractPath}\n\n`;
+        response += `## Next Steps\n\n`;
+        response += `The documentation has been downloaded but needs to be indexed for searching.\n\n`;
+        response += `To index the documentation, run:\n`;
+        response += `\`\`\`bash\nnpm run index-package-docs ${packageName}\n\`\`\`\n\n`;
+        response += `After indexing, you can search package documentation using:\n`;
+        response += `- \`search_unity_docs\` with \`type="package-docs"\`\n`;
+        response += `- Or search all documentation types with \`type="all"\`\n`;
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: response,
+            },
+          ],
+        };
+      } catch (error) {
+        logger().error('Failed to download package documentation', { packageName, error });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Failed to download package documentation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            },
+          ],
+        };
+      }
     }
 
     throw new Error(`Unknown tool: ${name}`);

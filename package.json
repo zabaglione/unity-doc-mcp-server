@@ -1,7 +1,7 @@
 {
   "name": "unity-doc-mcp-server",
-  "version": "0.1.1",
-  "description": "Unity Documentation MCP Server - Provides Unity 6 documentation via Model Context Protocol with full-text search and offline support",
+  "version": "0.2.0",
+  "description": "Unity Documentation MCP Server - Provides Unity 6 and package documentation via Model Context Protocol with full-text search and offline support",
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
@@ -13,10 +13,12 @@
     "lint": "eslint src/**/*.ts",
     "typecheck": "tsc --noEmit",
     "download-docs": "tsx src/scripts/download-docs.ts",
+    "download-package-docs": "tsx src/scripts/download-package-docs.ts",
     "init-db": "tsx src/scripts/init-db.ts",
     "index-docs": "tsx src/scripts/index-docs.ts",
+    "index-package-docs": "tsx src/scripts/index-package-docs.ts",
     "setup": "npm run init-db && npm run index-docs",
-    "clean": "rimraf dist data/extracted data/*.db"
+    "clean": "rimraf dist data/extracted data/unity-packages data/*.db"
   },
   "keywords": [
     "unity",

@@ -4,11 +4,13 @@ import { logger } from '../utils/logger.js';
 export interface ParsedDocument {
   title: string;
   content: string;
-  type: 'manual' | 'script-reference';
+  type: 'manual' | 'script-reference' | 'package-docs';
   sections: Array<{
     title: string;
     content: string;
   }>;
+  packageName?: string;
+  packageVersion?: string;
 }
 
 export class HtmlParser {
@@ -43,7 +45,11 @@ export class HtmlParser {
   /**
    * ファイルパスからドキュメントタイプを判定
    */
-  private detectDocumentType(filePath: string): 'manual' | 'script-reference' {
+  private detectDocumentType(filePath: string): 'manual' | 'script-reference' | 'package-docs' {
+    // パッケージドキュメントのチェック
+    if (filePath.includes('unity-packages/') || filePath.includes('com.unity.')) {
+      return 'package-docs';
+    }
     if (filePath.includes('Manual/') || filePath.includes('/Manual/')) {
       return 'manual';
     }

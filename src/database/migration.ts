@@ -82,10 +82,10 @@ export class Migration {
       this.migrateToV1();
     }
 
-    // Add future migrations here
-    // if (fromVersion < 2) {
-    //   this.migrateToV2();
-    // }
+    if (fromVersion < 2) {
+      logger().info('Running migration to version 2');
+      this.migrateToV2();
+    }
   }
 
   /**
@@ -93,6 +93,30 @@ export class Migration {
    */
   private migrateToV1(): void {
     this.db.exec(CREATE_TABLES_SQL);
+  }
+
+  /**
+   * Add package documentation support
+   */
+  private migrateToV2(): void {
+    logger().info('Migrating to v2: Adding package documentation support');
+    
+    // Add new columns to documents table
+    this.db.exec(`
+      -- Add package_name and package_version columns
+      ALTER TABLE ${TABLES.documents} ADD COLUMN package_name TEXT;
+      ALTER TABLE ${TABLES.documents} ADD COLUMN package_version TEXT;
+    `);
+    
+    // Create new index for package queries
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_documents_package 
+      ON ${TABLES.documents}(package_name, package_version);
+    `);
+    
+    // Note: SQLite doesn't support modifying CHECK constraints directly
+    // The type constraint will be enforced at the application level for existing rows
+    logger().info('Migration to v2 completed. Note: type constraint now includes "package-docs"');
   }
 
   /**

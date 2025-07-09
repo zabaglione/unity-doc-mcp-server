@@ -6,18 +6,22 @@ export interface SearchOptions {
   query: string;
   limit?: number;
   offset?: number;
-  type?: 'all' | 'manual' | 'script-reference';
+  type?: 'all' | 'manual' | 'script-reference' | 'package-docs';
   version?: string;
+  packageName?: string;
+  packageVersion?: string;
 }
 
 export interface SearchResult {
   id: string;
   title: string;
-  type: 'manual' | 'script-reference';
+  type: 'manual' | 'script-reference' | 'package-docs';
   filePath: string;
   url?: string;
   snippet: string;
   score: number;
+  packageName?: string;
+  packageVersion?: string;
 }
 
 export class DocumentSearch {
@@ -48,13 +52,15 @@ export class DocumentSearch {
   /**
    * Unity ドキュメントを検索
    */
-  public async search(options: SearchOptions): Promise<SearchResult[]> {
+  public search(options: SearchOptions): SearchResult[] {
     const { 
       query, 
       limit = 10, 
       offset = 0, 
       type = 'all',
-      version = '6000.1'
+      version = '6000.1',
+      packageName,
+      packageVersion
     } = options;
     
     logger().debug('Searching documents', { query, limit, offset, type, version });
@@ -76,6 +82,8 @@ export class DocumentSearch {
           d.type,
           d.file_path,
           d.url,
+          d.package_name,
+          d.package_version,
           snippet(documents_fts, 1, '<mark>', '</mark>', '...', 64) as snippet,
           rank as score
         FROM documents_fts fts
@@ -84,12 +92,23 @@ export class DocumentSearch {
           AND d.unity_version = ?
       `;
       
-      const params: any[] = [sanitizedQuery, version];
+      const params: (string | number)[] = [sanitizedQuery, version];
       
       // タイプフィルタ
       if (type !== 'all') {
         sql += ' AND d.type = ?';
         params.push(type);
+      }
+      
+      // パッケージフィルタ
+      if (packageName) {
+        sql += ' AND d.package_name = ?';
+        params.push(packageName);
+      }
+      
+      if (packageVersion) {
+        sql += ' AND d.package_version = ?';
+        params.push(packageVersion);
       }
       
       // ランキング順でソート
@@ -101,9 +120,11 @@ export class DocumentSearch {
         .all(...params) as Array<{
           id: string;
           title: string;
-          type: 'manual' | 'script-reference';
+          type: 'manual' | 'script-reference' | 'package-docs';
           file_path: string;
           url?: string;
+          package_name?: string;
+          package_version?: string;
           snippet: string;
           score: number;
         }>;
@@ -114,6 +135,8 @@ export class DocumentSearch {
         type: row.type,
         filePath: row.file_path,
         url: row.url,
+        packageName: row.package_name,
+        packageVersion: row.package_version,
         snippet: row.snippet,
         score: Math.abs(row.score) // FTS5のrankは負の値
       }));
@@ -127,13 +150,13 @@ export class DocumentSearch {
   /**
    * IDでドキュメントを取得
    */
-  public async getDocument(id: string): Promise<DocumentRow | null> {
+  public getDocument(id: string): DocumentRow | null {
     try {
       const doc = this.db.getDatabase()
         .prepare('SELECT * FROM documents WHERE id = ?')
         .get(id) as DocumentRow | undefined;
       
-      return doc || null;
+      return doc ?? null;
     } catch (error) {
       logger().error('Failed to get document', { id, error });
       throw error;
@@ -143,13 +166,13 @@ export class DocumentSearch {
   /**
    * ファイルパスでドキュメントを取得
    */
-  public async getDocumentByPath(filePath: string, version: string = '6000.1'): Promise<DocumentRow | null> {
+  public getDocumentByPath(filePath: string, version: string = '6000.1'): DocumentRow | null {
     try {
       const doc = this.db.getDatabase()
         .prepare('SELECT * FROM documents WHERE file_path = ? AND unity_version = ?')
         .get(filePath, version) as DocumentRow | undefined;
       
-      return doc || null;
+      return doc ?? null;
     } catch (error) {
       logger().error('Failed to get document by path', { filePath, error });
       throw error;
@@ -162,7 +185,7 @@ export class DocumentSearch {
   public async findSimilar(documentId: string, limit: number = 5): Promise<SearchResult[]> {
     try {
       // 元のドキュメントを取得
-      const doc = await this.getDocument(documentId);
+      const doc = this.getDocument(documentId);
       if (!doc) {
         return [];
       }
@@ -174,14 +197,14 @@ export class DocumentSearch {
         .slice(0, 3)
         .join(' ');
       
-      return await this.search({
+      const results = this.search({
         query: keywords,
         limit: limit + 1, // 自分自身を除外するため+1
         type: doc.type,
         version: doc.unity_version
-      }).then(results => 
-        results.filter(r => r.id !== documentId).slice(0, limit)
-      );
+      });
+      
+      return results.filter(r => r.id !== documentId).slice(0, limit);
       
     } catch (error) {
       logger().error('Failed to find similar documents', { documentId, error });

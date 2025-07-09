@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const TABLES = {
   documents: 'documents',
@@ -18,12 +18,14 @@ CREATE TABLE IF NOT EXISTS ${TABLES.schema_version} (
 CREATE TABLE IF NOT EXISTS ${TABLES.documents} (
   id TEXT PRIMARY KEY,
   unity_version TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('manual', 'script-reference')),
+  type TEXT NOT NULL CHECK (type IN ('manual', 'script-reference', 'package-docs')),
   title TEXT NOT NULL,
   file_path TEXT NOT NULL,
   url TEXT,
   content TEXT NOT NULL,
   html TEXT NOT NULL,
+  package_name TEXT,
+  package_version TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -32,6 +34,7 @@ CREATE TABLE IF NOT EXISTS ${TABLES.documents} (
 CREATE INDEX IF NOT EXISTS idx_documents_unity_version ON ${TABLES.documents}(unity_version);
 CREATE INDEX IF NOT EXISTS idx_documents_type ON ${TABLES.documents}(type);
 CREATE INDEX IF NOT EXISTS idx_documents_title ON ${TABLES.documents}(title);
+CREATE INDEX IF NOT EXISTS idx_documents_package ON ${TABLES.documents}(package_name, package_version);
 
 -- Full-text search virtual table
 CREATE VIRTUAL TABLE IF NOT EXISTS ${TABLES.documents_fts} USING fts5(
@@ -95,12 +98,14 @@ END;
 export interface DocumentRow {
   id: string;
   unity_version: string;
-  type: 'manual' | 'script-reference';
+  type: 'manual' | 'script-reference' | 'package-docs';
   title: string;
   file_path: string;
   url?: string;
   content: string;
   html: string;
+  package_name?: string;
+  package_version?: string;
   created_at: string;
   updated_at: string;
 }
