@@ -30,13 +30,18 @@
     "ai",
     "search",
     "sqlite",
-    "fts5"
+    "fts5",
+    "ecs",
+    "entities",
+    "package-docs",
+    "offline",
+    "gamedev"
   ],
   "author": "zabaglione",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zabaglione/unity-doc-mcp-server.git"
+    "url": "git+https://github.com/zabaglione/unity-doc-mcp-server.git"
   },
   "homepage": "https://github.com/zabaglione/unity-doc-mcp-server#readme",
   "bugs": {

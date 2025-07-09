@@ -51,6 +51,7 @@ test-mcp.sh
 # Unity Documentation data
 data/unity-zips/
 data/extracted/
+data/unity-packages/
 
 # Runtime files
 *.pid

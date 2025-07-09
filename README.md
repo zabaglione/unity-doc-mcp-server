@@ -162,13 +162,28 @@ Claude Desktopなどで使用する場合は、以下の設定を `~/Library/App
   "mcpServers": {
     "unity-docs": {
       "command": "node",
-      "args": ["/絶対パス/unity-doc-mcp-server/dist/server.js"]
+      "args": ["dist/server.js"],
+      "cwd": "/path/to/unity-doc-mcp-server"
     }
   }
 }
 ```
 
-**注意**: `args` のパスはプロジェクトの絶対パスを指定してください。
+### 設定例
+
+```json
+{
+  "mcpServers": {
+    "unity-docs": {
+      "command": "node",
+      "args": ["dist/server.js"],
+      "cwd": "/Users/username/unity-doc-mcp-server"
+    }
+  }
+}
+```
+
+**注意**: `cwd` にはプロジェクトの絶対パスを指定してください。
 
 ## 最新の改善点
 
