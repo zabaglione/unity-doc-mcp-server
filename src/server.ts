@@ -190,10 +190,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'list_unity_packages',
-        description: 'List available Unity package documentation',
+        description: 'List available Unity package documentation with categories and download statistics',
         inputSchema: {
           type: 'object',
-          properties: {},
+          properties: {
+            category: {
+              type: 'string',
+              enum: ['core', 'popular', 'specialized', 'all'],
+              description: 'Filter by category (optional)',
+            },
+            show_stats: {
+              type: 'boolean',
+              description: 'Show download statistics (default: false)',
+              default: false,
+            },
+          },
           required: [],
         },
       },
@@ -209,6 +220,38 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ['packageName'],
+        },
+      },
+      {
+        name: 'batch_download_unity_packages',
+        description: 'Download multiple Unity packages at once with progress tracking',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            packages: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              description: 'List of package names to download',
+            },
+          },
+          required: ['packages'],
+        },
+      },
+      {
+        name: 'download_package_group',
+        description: 'Download packages by category (core, popular, specialized, recommended, all)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            category: {
+              type: 'string',
+              enum: ['core', 'popular', 'specialized', 'recommended', 'all'],
+              description: 'Category of packages to download',
+            },
+          },
+          required: ['category'],
         },
       },
     ],
@@ -606,48 +649,105 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'list_unity_packages') {
-      logger().info('Listing Unity packages');
+      const { category, show_stats = false } = args as any;
+      
+      logger().info('Listing Unity packages', { category, show_stats });
       
       const downloader = new PackageDocumentationDownloader();
-      const packages = downloader.getAvailablePackages();
+      let packages = downloader.getAvailablePackages();
+      
+      // カテゴリでフィルタリング
+      if (category && category !== 'all') {
+        packages = downloader.getPackagesByCategory(category);
+      }
       
       // データベースから既存のパッケージドキュメント数を取得
       const dbConnection = DatabaseConnection.getInstance();
       const db = dbConnection.getDatabase();
       
       let response = `# Available Unity Package Documentation\n\n`;
-      response += `Total available packages: ${packages.length}\n\n`;
       
-      for (const pkg of packages) {
-        response += `## ${pkg.displayName}\n`;
-        response += `- **Package:** ${pkg.name}\n`;
-        response += `- **Version:** ${pkg.version}\n`;
+      if (category && category !== 'all') {
+        response += `**Category:** ${category.toUpperCase()}\n`;
+      }
+      
+      response += `**Total packages:** ${packages.length}\n\n`;
+      
+      // 統計情報を表示
+      if (show_stats) {
+        const stats = downloader.getDownloadStatistics();
+        response += `## Download Statistics\n\n`;
+        response += `- **Total packages:** ${stats.total}\n`;
+        response += `- **Downloaded:** ${stats.downloaded}\n`;
+        response += `- **Estimated total size:** ${stats.estimatedTotalSize}\n\n`;
         
-        // このパッケージがダウンロード済みかチェック
-        const docsPath = downloader.getPackageDocumentationPath(pkg.name);
-        if (docsPath) {
-          response += `- **Status:** ✅ Downloaded\n`;
+        response += `**By category:**\n`;
+        for (const [cat, catStats] of Object.entries(stats.categories)) {
+          response += `- **${cat.toUpperCase()}:** ${catStats.downloaded}/${catStats.total}\n`;
+        }
+        response += `\n`;
+      }
+      
+      // カテゴリ別に整理
+      const categorizedPackages = {
+        core: packages.filter(p => p.category === 'core'),
+        popular: packages.filter(p => p.category === 'popular'),
+        specialized: packages.filter(p => p.category === 'specialized'),
+      };
+      
+      for (const [cat, catPackages] of Object.entries(categorizedPackages)) {
+        if (catPackages.length === 0) continue;
+        
+        response += `## ${cat.toUpperCase()} Packages\n\n`;
+        
+        for (const pkg of catPackages) {
+          response += `### ${pkg.displayName}\n`;
+          response += `- **Package:** ${pkg.name}\n`;
+          response += `- **Version:** ${pkg.version}\n`;
+          response += `- **Category:** ${pkg.category}\n`;
+          response += `- **Priority:** ${pkg.priority}\n`;
+          response += `- **Size:** ${pkg.estimatedSize}\n`;
+          response += `- **Description:** ${pkg.description}\n`;
           
-          // インデックス済みドキュメント数を取得
-          try {
-            const docCount = db.prepare(
-              'SELECT COUNT(*) as count FROM documents WHERE package_name = ?'
-            ).get(pkg.name) as { count: number };
+          // このパッケージがダウンロード済みかチェック
+          const docsPath = downloader.getPackageDocumentationPath(pkg.name);
+          if (docsPath) {
+            response += `- **Status:** ✅ Downloaded\n`;
             
-            if (docCount.count > 0) {
-              response += `- **Indexed documents:** ${docCount.count}\n`;
-            } else {
-              response += `- **Indexed documents:** 0 (run \`index-package-docs\` to index)\n`;
+            // インデックス済みドキュメント数を取得
+            try {
+              const docCount = db.prepare(
+                'SELECT COUNT(*) as count FROM documents WHERE package_name = ?'
+              ).get(pkg.name) as { count: number };
+              
+              if (docCount.count > 0) {
+                response += `- **Indexed documents:** ${docCount.count}\n`;
+              } else {
+                response += `- **Indexed documents:** 0 (run \`index-package-docs\` to index)\n`;
+              }
+            } catch (error) {
+              // エラーは無視
             }
-          } catch (error) {
-            // エラーは無視
+          } else {
+            response += `- **Status:** ❌ Not downloaded\n`;
+            response += `- **Download:** Use \`download_unity_package_docs\` or \`download_package_group\` tool\n`;
           }
-        } else {
-          response += `- **Status:** ❌ Not downloaded\n`;
-          response += `- **Download:** Use \`download_unity_package_docs\` tool\n`;
+          
+          response += `- **Documentation URL:** ${pkg.documentation.url || 'N/A'}\n\n`;
+        }
+      }
+      
+      // 推奨パッケージの表示
+      if (!category || category === 'all') {
+        response += `## Recommended Packages (Quick Start)\n\n`;
+        const recommended = downloader.getRecommendedPackages();
+        response += `These are the most commonly used packages that are recommended for most Unity projects:\n\n`;
+        
+        for (const pkg of recommended) {
+          response += `- **${pkg.displayName}** (${pkg.category}, ${pkg.estimatedSize})\n`;
         }
         
-        response += `- **Documentation URL:** ${pkg.documentation.url || 'N/A'}\n\n`;
+        response += `\n**Quick download:** Use \`download_package_group\` with \`category="recommended"\`\n\n`;
       }
       
       return {
@@ -723,6 +823,202 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: `Failed to download package documentation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            },
+          ],
+        };
+      }
+    }
+
+    if (name === 'batch_download_unity_packages') {
+      const { packages: packageNames } = args as any;
+      
+      logger().info('Batch downloading Unity packages', { packageNames });
+      
+      const downloader = new PackageDocumentationDownloader();
+      
+      // パッケージ名の検証
+      const validPackages = [];
+      const invalidPackages = [];
+      
+      for (const packageName of packageNames) {
+        const packageInfo = downloader.getPackageInfo(packageName);
+        if (packageInfo) {
+          validPackages.push(packageName);
+        } else {
+          invalidPackages.push(packageName);
+        }
+      }
+      
+      if (invalidPackages.length > 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Invalid packages detected: ${invalidPackages.join(', ')}\n\nUse \`list_unity_packages\` to see available packages.`,
+            },
+          ],
+        };
+      }
+      
+      let response = `# Batch Download Unity Packages\n\n`;
+      response += `**Packages to download:** ${validPackages.length}\n\n`;
+      
+      try {
+        const results = await downloader.batchDownloadPackages(validPackages);
+        
+        response += `## Download Results\n\n`;
+        response += `- **Successful:** ${results.successful.length}\n`;
+        response += `- **Failed:** ${results.failed.length}\n\n`;
+        
+        if (results.successful.length > 0) {
+          response += `### Successfully Downloaded:\n`;
+          for (const pkg of results.successful) {
+            const info = downloader.getPackageInfo(pkg);
+            response += `- ✅ **${info?.displayName || pkg}** (${pkg})\n`;
+          }
+          response += `\n`;
+        }
+        
+        if (results.failed.length > 0) {
+          response += `### Failed Downloads:\n`;
+          for (const failure of results.failed) {
+            response += `- ❌ **${failure.package}**: ${failure.error}\n`;
+          }
+          response += `\n`;
+        }
+        
+        if (results.successful.length > 0) {
+          response += `## Next Steps\n\n`;
+          response += `The documentation has been downloaded but needs to be indexed for searching.\n\n`;
+          response += `To index all downloaded packages, run:\n`;
+          response += `\`\`\`bash\nnpm run index-package-batch\n\`\`\`\n\n`;
+          response += `After indexing, you can search package documentation using:\n`;
+          response += `- \`search_unity_docs\` with \`type="package-docs"\`\n`;
+          response += `- Or search all documentation types with \`type="all"\`\n`;
+        }
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: response,
+            },
+          ],
+        };
+      } catch (error) {
+        logger().error('Batch download failed', { packageNames, error });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Batch download failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            },
+          ],
+        };
+      }
+    }
+
+    if (name === 'download_package_group') {
+      const { category } = args as any;
+      
+      logger().info('Downloading package group', { category });
+      
+      const downloader = new PackageDocumentationDownloader();
+      
+      let packages: string[] = [];
+      let categoryDisplayName = '';
+      
+      if (category === 'core' || category === 'popular' || category === 'specialized') {
+        const categoryPackages = downloader.getPackagesByCategory(category);
+        packages = categoryPackages.map(pkg => pkg.name);
+        categoryDisplayName = category.toUpperCase();
+      } else if (category === 'recommended') {
+        const recommendedPackages = downloader.getRecommendedPackages();
+        packages = recommendedPackages.map(pkg => pkg.name);
+        categoryDisplayName = 'RECOMMENDED';
+      } else if (category === 'all') {
+        const allPackages = downloader.getAvailablePackages();
+        packages = allPackages.map(pkg => pkg.name);
+        categoryDisplayName = 'ALL';
+      } else {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Unknown category: ${category}\n\nSupported categories: core, popular, specialized, recommended, all`,
+            },
+          ],
+        };
+      }
+      
+      let response = `# Download Package Group: ${categoryDisplayName}\n\n`;
+      response += `**Packages to download:** ${packages.length}\n\n`;
+      
+      // 推定サイズを計算
+      const allPackageInfo = downloader.getAvailablePackages();
+      let totalEstimatedSize = 0;
+      
+      for (const packageName of packages) {
+        const pkg = allPackageInfo.find(p => p.name === packageName);
+        if (pkg) {
+          const sizeMatch = pkg.estimatedSize.match(/(\d+)MB/);
+          if (sizeMatch) {
+            totalEstimatedSize += parseInt(sizeMatch[1]);
+          }
+        }
+      }
+      
+      response += `**Estimated download size:** ${totalEstimatedSize}MB\n\n`;
+      
+      try {
+        const results = await downloader.batchDownloadPackages(packages);
+        
+        response += `## Download Results\n\n`;
+        response += `- **Successful:** ${results.successful.length}\n`;
+        response += `- **Failed:** ${results.failed.length}\n\n`;
+        
+        if (results.successful.length > 0) {
+          response += `### Successfully Downloaded:\n`;
+          for (const pkg of results.successful) {
+            const info = downloader.getPackageInfo(pkg);
+            response += `- ✅ **${info?.displayName || pkg}** (${pkg})\n`;
+          }
+          response += `\n`;
+        }
+        
+        if (results.failed.length > 0) {
+          response += `### Failed Downloads:\n`;
+          for (const failure of results.failed) {
+            response += `- ❌ **${failure.package}**: ${failure.error}\n`;
+          }
+          response += `\n`;
+        }
+        
+        if (results.successful.length > 0) {
+          response += `## Next Steps\n\n`;
+          response += `The documentation has been downloaded but needs to be indexed for searching.\n\n`;
+          response += `To index the downloaded packages, run:\n`;
+          response += `\`\`\`bash\nnpm run index-package-batch ${category}\n\`\`\`\n\n`;
+          response += `After indexing, you can search package documentation using:\n`;
+          response += `- \`search_unity_docs\` with \`type="package-docs"\`\n`;
+          response += `- Or search all documentation types with \`type="all"\`\n`;
+        }
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: response,
+            },
+          ],
+        };
+      } catch (error) {
+        logger().error('Package group download failed', { category, error });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Package group download failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
             },
           ],
         };

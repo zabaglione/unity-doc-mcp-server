@@ -14,10 +14,13 @@
     "typecheck": "tsc --noEmit",
     "download-docs": "tsx src/scripts/download-docs.ts",
     "download-package-docs": "tsx src/scripts/download-package-docs.ts",
+    "download-package-batch": "tsx src/scripts/download-package-batch.ts",
+    "index-package-batch": "tsx src/scripts/index-package-batch.ts",
     "init-db": "tsx src/scripts/init-db.ts",
     "index-docs": "tsx src/scripts/index-docs.ts",
     "index-package-docs": "tsx src/scripts/index-package-docs.ts",
     "setup": "npm run init-db && npm run index-docs",
+    "setup-recommended": "npm run init-db && npm run index-docs && npm run download-package-batch recommended && npm run index-package-batch recommended",
     "clean": "rimraf dist data/extracted data/unity-packages data/*.db"
   },
   "keywords": [
