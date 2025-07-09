@@ -4,6 +4,7 @@ export const TABLES = {
   documents: 'documents',
   documents_fts: 'documents_fts',
   schema_version: 'schema_version',
+  version_info: 'version_info',
 } as const;
 
 export const CREATE_TABLES_SQL = `
@@ -64,6 +65,30 @@ BEGIN
   UPDATE ${TABLES.documents} 
   SET updated_at = CURRENT_TIMESTAMP 
   WHERE rowid = new.rowid;
+END;
+
+-- Version information table
+CREATE TABLE IF NOT EXISTS ${TABLES.version_info} (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert default version info
+INSERT OR IGNORE INTO ${TABLES.version_info} (key, value) VALUES 
+  ('unity_version', '6000.1'),
+  ('release_date', '2024-11-20'),
+  ('documentation_source', 'https://docs.unity3d.com/6000.1/Documentation/'),
+  ('last_download', '');
+
+-- Update timestamp trigger for version_info
+CREATE TRIGGER IF NOT EXISTS version_info_update_timestamp 
+AFTER UPDATE ON ${TABLES.version_info}
+BEGIN
+  UPDATE ${TABLES.version_info} 
+  SET updated_at = CURRENT_TIMESTAMP 
+  WHERE key = NEW.key;
 END;
 `;
 

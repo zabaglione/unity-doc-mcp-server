@@ -178,6 +178,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['path', 'section_id'],
         },
       },
+      {
+        name: 'get_unity_version_info',
+        description: 'Get information about the Unity documentation version currently available',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
+      },
     ],
   };
 });
@@ -211,8 +220,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
       
+      // バージョン情報を取得
+      const dbConnection = DatabaseConnection.getInstance();
+      const db = dbConnection.getDatabase();
+      let unityVersion = '6000.1'; // デフォルト値
+      
+      try {
+        const versionResult = db.prepare('SELECT value FROM version_info WHERE key = ?').get('unity_version') as { value: string } | undefined;
+        if (versionResult) {
+          unityVersion = versionResult.value;
+        }
+      } catch (error) {
+        // エラーの場合はデフォルト値を使用
+        logger().warn('Could not retrieve Unity version from database', { error });
+      }
+      
       // 結果をフォーマット
-      let response = `Found ${results.length} results for "${query}":\n\n`;
+      let response = `Found ${results.length} results for "${query}" (Unity ${unityVersion}):\n\n`;
       
       results.forEach((result, index) => {
         response += `${index + 1}. **${result.title}** (${result.type})\n`;
@@ -234,6 +258,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { path, offset = 0, limit = 2000 } = args as any;
       
       logger().info('Reading Unity doc', { path, offset, limit });
+      
+      // バージョン情報を取得
+      const dbConnection = DatabaseConnection.getInstance();
+      const db = dbConnection.getDatabase();
+      let unityVersion = '6000.1'; // デフォルト値
+      
+      try {
+        const versionResult = db.prepare('SELECT value FROM version_info WHERE key = ?').get('unity_version') as { value: string } | undefined;
+        if (versionResult) {
+          unityVersion = versionResult.value;
+        }
+      } catch (error) {
+        logger().warn('Could not retrieve Unity version from database', { error });
+      }
       
       // データベースからドキュメントを取得
       const search = new DocumentSearch();
@@ -260,7 +298,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const parsed = parser.parse(html, path);
         
         let response = `# ${parsed.title}\n\n`;
-        response += `**Type:** ${parsed.type}\n\n`;
+        response += `**Type:** ${parsed.type}\n`;
+        response += `**Unity Version:** ${unityVersion}\n\n`;
         
         // オフセットとリミットを適用
         const contentChunk = parsed.content.substring(offset, offset + limit);
@@ -298,6 +337,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       let response = `# ${doc.title}\n\n`;
       response += `**Type:** ${doc.type}\n`;
+      response += `**Unity Version:** ${unityVersion}\n`;
       response += `**Path:** ${doc.file_path}\n\n`;
       
       // オフセットとリミットを適用してコンテンツを表示
@@ -340,6 +380,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       logger().info('Listing Unity doc sections', { path });
       
+      // バージョン情報を取得
+      const dbConnection = DatabaseConnection.getInstance();
+      const db = dbConnection.getDatabase();
+      let unityVersion = '6000.1'; // デフォルト値
+      
+      try {
+        const versionResult = db.prepare('SELECT value FROM version_info WHERE key = ?').get('unity_version') as { value: string } | undefined;
+        if (versionResult) {
+          unityVersion = versionResult.value;
+        }
+      } catch (error) {
+        logger().warn('Could not retrieve Unity version from database', { error });
+      }
+      
       // データベースからドキュメントを取得
       const search = new DocumentSearch();
       const doc = await search.getDocumentByPath(path);
@@ -359,6 +413,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const sections = extractSections(doc.html);
       
       let response = `# Sections in ${doc.title}\n\n`;
+      response += `**Unity Version:** ${unityVersion}\n`;
       response += `**Path:** ${path}\n`;
       response += `**Total sections:** ${sections.length}\n\n`;
       
@@ -383,6 +438,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { path, section_id } = args as any;
       
       logger().info('Reading Unity doc section', { path, section_id });
+      
+      // バージョン情報を取得
+      const dbConnection = DatabaseConnection.getInstance();
+      const db = dbConnection.getDatabase();
+      let unityVersion = '6000.1'; // デフォルト値
+      
+      try {
+        const versionResult = db.prepare('SELECT value FROM version_info WHERE key = ?').get('unity_version') as { value: string } | undefined;
+        if (versionResult) {
+          unityVersion = versionResult.value;
+        }
+      } catch (error) {
+        logger().warn('Could not retrieve Unity version from database', { error });
+      }
       
       // データベースからドキュメントを取得
       const search = new DocumentSearch();
@@ -416,11 +485,88 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       let response = `# ${targetSection.title}\n\n`;
       response += `**Document:** ${doc.title}\n`;
+      response += `**Unity Version:** ${unityVersion}\n`;
       response += `**Path:** ${path}\n`;
       response += `**Section ID:** ${section_id}\n`;
       response += `**Level:** ${targetSection.level}\n\n`;
       response += `---\n\n`;
       response += targetSection.content;
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: response,
+          },
+        ],
+      };
+    }
+
+    if (name === 'get_unity_version_info') {
+      logger().info('Getting Unity version info');
+      
+      // データベースから統計情報を取得
+      const dbConnection = DatabaseConnection.getInstance();
+      const db = dbConnection.getDatabase();
+      
+      // バージョン情報の取得
+      const versionInfo = {
+        unityVersion: '6000.1', // 現在対応しているUnityバージョン
+        releaseDate: '2024-11-20', // Unity 6のリリース日
+        documentCount: 0,
+        manualPages: 0,
+        scriptReferencePages: 0,
+        lastUpdated: new Date().toISOString(),
+        databaseSize: 0,
+      };
+      
+      try {
+        // ドキュメント数の取得
+        const totalDocs = db.prepare('SELECT COUNT(*) as count FROM documents').get() as { count: number };
+        versionInfo.documentCount = totalDocs.count;
+        
+        const manualDocs = db.prepare('SELECT COUNT(*) as count FROM documents WHERE type = ?').get('manual') as { count: number };
+        versionInfo.manualPages = manualDocs.count;
+        
+        const scriptDocs = db.prepare('SELECT COUNT(*) as count FROM documents WHERE type = ?').get('script-reference') as { count: number };
+        versionInfo.scriptReferencePages = scriptDocs.count;
+        
+        // データベースサイズの取得
+        const pageCount = db.prepare('PRAGMA page_count').get() as { page_count: number };
+        const pageSize = db.prepare('PRAGMA page_size').get() as { page_size: number };
+        versionInfo.databaseSize = pageCount.page_count * pageSize.page_size;
+        
+        // 最終更新時刻の取得
+        const lastDoc = db.prepare('SELECT MAX(updated_at) as last_updated FROM documents').get() as { last_updated: string };
+        if (lastDoc.last_updated) {
+          versionInfo.lastUpdated = lastDoc.last_updated;
+        }
+      } catch (error) {
+        logger().warn('Could not retrieve complete version info', { error });
+      }
+      
+      let response = `# Unity Documentation Version Information\n\n`;
+      response += `**Unity Version:** ${versionInfo.unityVersion}\n`;
+      response += `**Release Date:** ${versionInfo.releaseDate}\n`;
+      response += `**Total Documents:** ${versionInfo.documentCount.toLocaleString()}\n`;
+      response += `**Manual Pages:** ${versionInfo.manualPages.toLocaleString()}\n`;
+      response += `**Script Reference Pages:** ${versionInfo.scriptReferencePages.toLocaleString()}\n`;
+      response += `**Database Size:** ${(versionInfo.databaseSize / 1024 / 1024).toFixed(2)} MB\n`;
+      response += `**Last Updated:** ${new Date(versionInfo.lastUpdated).toLocaleString()}\n\n`;
+      
+      response += `## Version Details\n\n`;
+      response += `This MCP server provides offline access to Unity 6 (6000.1) documentation.\n`;
+      response += `The documentation includes:\n`;
+      response += `- Unity Manual: Comprehensive guides and tutorials\n`;
+      response += `- Script Reference: Complete API documentation\n`;
+      response += `- Full-text search with special character support\n`;
+      response += `- Offline operation with SQLite FTS5\n\n`;
+      
+      response += `## Search Capabilities\n\n`;
+      response += `- Query sanitization for special characters (dots, brackets, etc.)\n`;
+      response += `- HTML entity decoding for proper text display\n`;
+      response += `- Cross-platform file path handling\n`;
+      response += `- Pagination support for large documents\n`;
       
       return {
         content: [
