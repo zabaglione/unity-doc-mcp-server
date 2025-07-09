@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(nvm install:*)",
+      "Bash(nvm:*)",
+      "Bash(npm install)",
+      "Bash(node:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm test:*)",
+      "Bash(npm install:*)",
+      "Bash(npm rebuild:*)",
+      "Bash(rm:*)",
+      "Bash(/Users/zabaglione/.nvm/versions/node/v20.10.0/bin/npm install)",
+      "Bash(PATH=\"/Users/zabaglione/.nvm/versions/node/v20.10.0/bin:$PATH\" /Users/zabaglione/.nvm/versions/node/v20.10.0/bin/npm install)",
+      "Bash(PATH=\"/Users/zabaglione/.nvm/versions/node/v20.10.0/bin:$PATH\" npm test)",
+      "Bash(PATH=\"/Users/zabaglione/.nvm/versions/node/v20.10.0/bin:$PATH\" npm run typecheck)",
+      "Bash(PATH=\"/Users/zabaglione/.nvm/versions/node/v20.10.0/bin:$PATH\" npm run lint)",
+      "Bash(npm run lint)",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(/Users/zabaglione/.nvm/versions/node/v20.10.0/bin/npm rebuild better-sqlite3)",
+      "Bash(/Users/zabaglione/.nvm/versions/node/v20.10.0/bin/npm test)",
+      "Bash(env)",
+      "Bash(export PATH=/Users/zabaglione/.nvm/versions/node/v20.10.0/bin:$PATH)",
+      "Bash(npx vitest run:*)",
+      "Bash(git add:*)",
+      "Bash(git init:*)"
+    ],
+    "deny": []
+  }
+}
